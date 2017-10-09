@@ -967,6 +967,33 @@ void MVM_jit_expr_tree_destroy(MVMThreadContext *tc, MVMJitExprTree *tree) {
     MVM_free(tree);
 }
 
+
+/* Equivalence function, intended for the optimizer or whatever needs to
+ * manipulate the expr tree */
+MVMint32 MVM_jit_expr_tree_eqv(MVMThreadContext *tc, MVMJitExprNode *a, MVMint32 na,
+                               MVMJitExprNode *b, MVMint32 nb, MVMint32 compare_args) {
+    const MVMJitExprOpInfo *info = MVM_jit_expr_op_info(tc, a[na]);
+    MVMint32 nchild = info->nchild;
+    MVMint32 ca = na + 1, cb = nb + 1, i;
+    if (a[na] != b[nb])
+        return 0;
+    if (nchild < 0) {
+        nchild = a[ca++];
+        if (nchild != b[cb++])
+            return 0;
+    }
+    for (i = 0; i < nchild; i++) {
+        if (!MVM_jit_expr_tree_eqv(tc, a, a[ca+i], b, b[cb+i], compare_args))
+            return 0;
+    }
+    if (compare_args) {
+        if (memcmp(a + ca + nchild, b + cb + nchild, sizeof(MVMJitExprNode) * info->nargs))
+            return 0;
+    }
+    return 1;
+}
+
+
 static void walk_tree(MVMThreadContext *tc, MVMJitExprTree *tree,
                  MVMJitTreeTraverser *traverser, MVMint32 node) {
     const MVMJitExprOpInfo *info = MVM_jit_expr_op_info(tc, tree->nodes[node]);
