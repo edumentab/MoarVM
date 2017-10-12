@@ -256,6 +256,9 @@ void MVM_jit_compile_expr_tree(MVMThreadContext *tc, MVMJitCompiler *compiler, M
     MVMJitTileList *list;
     MVMJitTile *tile;
     MVMint32 i;
+    /* stage zero, optimize the tree */
+    MVM_jit_expr_tree_optimize(tc, jg, tree);
+
     /* First stage, tile the tree */
     list = MVM_jit_tile_expr_tree(tc, compiler, tree);
     MVM_jit_log_tile_list(tc, list);

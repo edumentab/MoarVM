@@ -331,8 +331,8 @@ as well.
 
 Not implemented at all, so we need some new things.
 
-** DONE An equivalence function
-** TODO A replacement 'function'
+** TODO An equivalence function
+** DONE A replacement 'function'
 
 Basically we require the possibility to update all uses of a node with
 another one, including roots, if necessary.
@@ -351,7 +351,7 @@ Walks should be single-visit.
     - then parent is itself 'hashed' to a record, an potentially
       replaced
 - IDX CONST to ADDR conversion
-  - Uses one register less, simpler operation
+  - Uses one register fewer, simpler operation
 - ADD CONST to ADDR conversion
   - only allowed if user is pointerlike (e.g. LOAD)
 - COPY insertion

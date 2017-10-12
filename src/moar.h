@@ -193,6 +193,7 @@ MVM_PUBLIC const MVMint32 MVM_jit_support(void);
 #include "jit/label.h"
 #include "jit/expr.h"
 #include "jit/register.h"
+#include "jit/optimize.h"
 #include "jit/tile.h"
 #include "jit/compile.h"
 #include "jit/log.h"
