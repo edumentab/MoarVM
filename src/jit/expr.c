@@ -352,32 +352,51 @@ static void check_template(MVMThreadContext *tc, const MVMJitExprTemplate *templ
 }
 
 /* Add template to nodes, filling in operands and linking tree nodes. Return template root */
-MVMint32 MVM_jit_expr_apply_template(MVMThreadContext *tc, MVMJitExprTree *tree,
-                                     const MVMJitExprTemplate *template, MVMint32 *operands) {
+static MVMint32 apply_template(MVMThreadContext *tc, MVMJitExprTree *tree, MVMint32 len, char *info,
+                               MVMJitExprNode *code, MVMint32 *operands) {
     MVMint32 i, num;
     num = tree->nodes_num;
-    MVM_VECTOR_ENSURE_SPACE(tree->nodes, template->len);
+    MVM_VECTOR_ENSURE_SPACE(tree->nodes, len);
     /* Loop over string until the end */
-    for (i = 0; template->info[i]; i++) {
-        switch (template->info[i]) {
+    for (i = 0; info[i]; i++) {
+        switch (info[i]) {
         case 'l':
             /* link template-relative to nodes-relative */
-            tree->nodes[num+i] = template->code[i] + num;
+            tree->nodes[num+i] = code[i] + num;
             break;
         case 'f':
             /* add operand node into the nodes */
-            tree->nodes[num+i] = operands[template->code[i]];
+            tree->nodes[num+i] = operands[code[i]];
             break;
         default:
             /* copy from template to nodes */
-            tree->nodes[num+i] = template->code[i];
+            tree->nodes[num+i] = code[i];
             break;
         }
     }
-    tree->nodes_num = num + template->len;
-    return num + template->root; /* root relative to nodes */
+    tree->nodes_num = num + len;
+    return num;
 }
 
+MVMint32 MVM_jit_expr_apply_template(MVMThreadContext *tc, MVMJitExprTree *tree,
+                                     const MVMJitExprTemplate *template, MVMint32 *operands) {
+    return apply_template(tc, tree, template->len, (char*)template->info,
+                          (MVMJitExprNode*)template->code, operands) + template->root;
+}
+
+/* this will fail with more than 16 nodes, which is just as fine */
+MVMint32 MVM_jit_expr_apply_template_adhoc(MVMThreadContext *tc, MVMJitExprTree *tree,
+                                           char *info, ...) {
+    MVMJitExprNode code[16];
+    MVMint32 i;
+    va_list args;
+    va_start(args, info);
+    for (i = 0; info[i] != 0; i++) {
+        code[i] = va_arg(args, MVMint32);
+    }
+    va_end(args);
+    return apply_template(tc, tree, i, info, code, NULL);
+}
 
 
 /* Collect tree analysis information, add stores of computed values */
