@@ -108,11 +108,13 @@
 (template: sp_p6obind_n (store (add (^p6obody $0) $1) $2 int_sz))
 
 (template: sp_p6obind_o
-    (dov (^write_barrier $0 $2)
+    (dov (discard $2)
+         (^write_barrier $0 $2)
          (store (add (^p6obody $0) $1) $2 ptr_sz)))
 
 (template: sp_p6obind_s
-    (dov (^write_barrier $0 $2)
+    (dov (discard $2)
+         (^write_barrier $0 $2)
          (store (add (^p6obody $0) $1) $2 ptr_sz)))
 
 (template: sp_p6ogetvt_o
