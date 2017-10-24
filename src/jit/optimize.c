@@ -55,18 +55,14 @@ static void replace_node(MVMThreadContext *tc, MVMJitTreeTraverser *traverser,
     o->replacements[node] = replacement;
     o->replacement_cnt++;
 
-    /* NB - we only need this for the op_info which is looked up everywhere, and
-     * we only need that for the nargs < 0 check, which I want to get rid of and
-     * replace with a bitmap - and that implies that I might be able to make the
-     * info structure transient. */
+    /* these should be initialized correctly for tiling */
     MVM_VECTOR_ENSURE_SIZE(tree->info, replacement);
-    tree->info[replacement].op_info = MVM_jit_expr_op_info(tc, tree->nodes[replacement]);
 }
 
 static void optimize_child(MVMThreadContext *tc, MVMJitTreeTraverser *traverser,
                            MVMJitExprTree *tree, MVMint32 node, MVMint32 child) {
     /* add reference from parent to child, replace child with reference if possible */
-    MVMint32 first_child = tree->info[node].op_info->nchild < 0 ? node + 2 : node + 1;
+    MVMint32 first_child = MVM_jit_expr_op_info(tc, tree->nodes[node])->nchild < 0 ? node + 2 : node + 1;
     MVMint32 child_node = tree->nodes[first_child+child];
     struct Optimizer *o = traverser->data;
 
