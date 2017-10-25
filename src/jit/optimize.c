@@ -69,9 +69,9 @@ static void optimize_child(MVMThreadContext *tc, MVMJitTreeTraverser *traverser,
     /* double referenced LOAD replacement */
      if (tree->nodes[child_node] == MVM_JIT_LOAD &&
          o->info[child_node].ref_cnt > 1) {
-         _DEBUG("optimizing multiple (ref_cnt=%d) LOAD (%d) to COPY", o->info[child_node].ref_cnt, child_node);
          MVMint32 replacement = MVM_jit_expr_apply_template_adhoc(tc, tree, "..", MVM_JIT_COPY, child_node);
-         replace_node(tc, traverser, tree, child_node, replacement);
+         _DEBUG("optimizing multiple (ref_cnt=%d) LOAD (%d) to COPY", o->info[child_node].ref_cnt, child_node);
+        replace_node(tc, traverser, tree, child_node, replacement);
     }
 
 
