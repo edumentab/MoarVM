@@ -136,6 +136,15 @@ static void optimize_postorder(MVMThreadContext *tc, MVMJitTreeTraverser *traver
         }
         break;
     }
+    case MVM_JIT_COPY:
+    {
+        MVMint32 child = tree->nodes[node+1];
+        if (tree->nodes[child] == MVM_JIT_CONST) {
+            _DEBUG("Elinimating COPY of CONST (%d)", tree->nodes[child+1]);
+            replacement = child;
+        }
+        break;
+    }
     }
 
     if (replacement > 0) {
