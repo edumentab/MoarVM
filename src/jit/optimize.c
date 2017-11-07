@@ -121,6 +121,21 @@ static void optimize_postorder(MVMThreadContext *tc, MVMJitTreeTraverser *traver
         }
         break;
     }
+    case MVM_JIT_ADD:
+    {
+        MVMint32 lhs = tree->nodes[node+1];
+        MVMint32 rhs = tree->nodes[node+2];
+        if (tree->nodes[rhs] == MVM_JIT_CONST) {
+            MVMint32 cv = tree->nodes[rhs+1];
+            if (cv != 0 && tree->info[node].size == MVM_JIT_PTR_SZ) {
+                _DEBUG("Replacing ADD CONST %d to ADDR for pointer-sized addition", cv, cv);
+                replacement = MVM_jit_expr_apply_template_adhoc(tc, tree, "...", MVM_JIT_ADDR, lhs, cv);
+            } else if (cv == 0) {
+                replacement = lhs;
+            }
+        }
+        break;
+    }
     }
 
     if (replacement > 0) {
