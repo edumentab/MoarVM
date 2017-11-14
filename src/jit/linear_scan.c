@@ -637,7 +637,7 @@ static void active_set_expire(MVMThreadContext *tc, RegisterAllocator *alc, MVMi
             break;
         } else {
             _DEBUG("Live range %d is out of scope (last ref %d, %d) and releasing register %d",
-                    v, values[v].end, order_nr, reg_num);
+                    v, alc->values[v].end, order_nr, reg_num);
             free_register(tc, alc, MVM_JIT_STORAGE_GPR, reg_num);
         }
     }

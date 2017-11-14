@@ -35,10 +35,8 @@
               $replace
               (addr ,a (&offsetof MVMP6opaque body)))))
 
-
-(macro: ^func (,a) (const (&CONST_PTR ,a) ptr_sz))
 (macro: ^cu_string (,a)
-    (call (^func MVM_cu_string)
+    (call (const_ptr MVM_cu_string)
           (arglist (carg (tc) ptr) (carg (cu) ptr) (carg ,a int))
           ptr_sz))
 
@@ -47,7 +45,7 @@
    (when (all (nz (and (^getf ,obj MVMCollectable flags) (^objflag MVM_CF_SECOND_GEN)))
               (nz ,ref)
               (zr (and (^getf ,ref MVMCollectable flags) (^objflag MVM_CF_SECOND_GEN))))
-         (callv (^func &MVM_gc_write_barrier_hit)
+         (callv (const_ptr MVM_gc_write_barrier_hit)
                 (arglist (carg (tc) ptr)
                          (carg ,obj ptr)))))
 

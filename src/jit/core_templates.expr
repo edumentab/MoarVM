@@ -127,7 +127,7 @@
                  (store $addr $type ptr_sz)
                  (copy $type)))))
 
-(template: say (callv (^func &MVM_string_say)
+(template: say (callv (const_ptr MVM_string_say)
                       (arglist (carg (tc) ptr)
                                (carg $0 ptr))))
 
@@ -160,7 +160,7 @@
 )
 
 (template: wval
-    (call (^func MVM_sc_get_sc_object)
+    (call (const_ptr MVM_sc_get_sc_object)
         (arglist (carg (tc) ptr)
                  (carg (cu) ptr)
                  (carg $1 int)
@@ -226,7 +226,7 @@
    (let: (($how (^getf (^stable $1) MVMSTable HOW)))
      (if (nz $how)
          $how
-         (call (^func MVM_6model_get_how)
+         (call (const_ptr MVM_6model_get_how)
                (arglist (carg (tc) ptr)
                         (carg (^stable $1) ptr))
                         ptr_sz))))
@@ -288,7 +288,7 @@
 
 (template: sp_fastcreate!
    (let: (($block
-           (call (^func &MVM_gc_allocate_zeroed)
+           (call (const_ptr MVM_gc_allocate_zeroed)
                  (arglist (carg (tc) ptr)
                           (carg $1 int)) ptr_sz)))
           (^setf $block MVMObject st (load (^spesh_slot $2) ptr_sz))
@@ -298,12 +298,12 @@
 
 (template: return_o
   (dov
-     (callv (^func &MVM_args_set_result_obj)
+     (callv (const_ptr MVM_args_set_result_obj)
            (arglist
               (carg (tc) ptr)
               (carg $0 ptr)
               (carg (const 0 int_sz) int)))
-     (callv (^func &MVM_frame_try_return)
+     (callv (const_ptr MVM_frame_try_return)
            (arglist (carg (tc) ptr)))
       (^exit)))
 
