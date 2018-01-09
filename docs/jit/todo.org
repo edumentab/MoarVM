@@ -193,6 +193,17 @@ All that would remain of info would be spesh_ins, meaning that this
 would become sufficiently sparse to use a hash table, which would mean
 we no longer need to resize the number of args.
 
+#+BEGIN_SRC C
+typedef union {
+    struct {
+        MVMint16 o; /* operator */
+        MVMuint8 c; /* number of children */
+        MVMuint8 s : 4; /* size of result */
+        MVMuint8 t : 4; /* type of result */
+    }
+    MVMint32 r; /* reference */
+} MVMJitExprNode;
+#+END_SRC
 
 ** REPR-Specialized expression code
 
