@@ -3,92 +3,92 @@
 * VM integration
 ** Stack walker for current position
 
- Currently we mark the 'current position' in the JIT entry label at the
- start of every basic block, the start-and-end of frame handlers, and
- the start-and-end of inlines. This is major code bloat, for a feature
- that is only necessary in exceptional cases,
+Currently we mark the 'current position' in the JIT entry label at the
+start of every basic block, the start-and-end of frame handlers, and
+the start-and-end of inlines. This is major code bloat, for a feature
+that is only necessary in exceptional cases,
 
- Concept of stack walker is very simple:
- #+BEGIN_SRC asm
+Concept of stack walker is very simple:
+
+#+BEGIN_SRC asm
         mov rcx, 1 ; rsp = []
         call foo  ; rsp = [label:],
- label: mov rcx, rax;  rsp = []
+label: mov rcx, rax;  rsp = []
         ...
 
- foo: ; stack (from rsp) looks like: [label:]
-      push rbp     ; [label:,rbp]
-      mov rbp, rsp ; rbp is now top of stack, so that
-      add rsp, 0xff; rsp = [label:,rbp, ? x 1]
-      ...
-      sub rsp, 0xff ; rsp = [label:,rbp]
-      pop rbp       ; rsp = [label:]
-      ret           ; rsp = []
- #+END_SRC
+foo: ; stack (from rsp) looks like: [label:]
+     push rbp     ; [label:,rbp]
+     mov rbp, rsp ; rbp is now top of stack, so that
+     add rsp, 0xff; rsp = [label:,rbp, ? x 1]
+     ...
+     sub rsp, 0xff ; rsp = [label:,rbp]
+     pop rbp       ; rsp = [label:]
+     ret           ; rsp = []
+#+END_SRC
 
- - On POSIX, arg 0 = rdi, arg 1 = rsi, arg2 = rdx.
- - On Windows, arg0 = rcx, arg1 = rdx, arg2 = r8.
- - On linux, names are generally used as-is, mac wants them prefixed by an underscore.
+- On POSIX, arg 0 = rdi, arg 1 = rsi, arg2 = rdx.
+- On Windows, arg0 = rcx, arg1 = rdx, arg2 = r8.
+- On linux, names are generally used as-is, mac wants them prefixed by an underscore.
 
- Desirable thing: limit the depth of stack walking to some reasonable number (say, 5 or so)
+Desirable thing: limit the depth of stack walking to some reasonable number (say, 5 or so)
 
- #+BEGIN_SRC asm
- walk_stack_posix:
- _walk_stack_posix:
-     mov rcx, rdi ; base pointer
-     mov r8,  rdx ; maximum number of steps
-     mov rdx, rsi ; end pointer
- _walk_stack_win64:
-     # rdi = base pointer, rsi = end pointer
-     push rbp
-     mov r9, rsp
- loop:
-     dec r8 ; counter
-     jz done
-     mov rax, qword ptr [r9+0x8]
-     mov r9, qword ptr [r9]
-     cmp rax, rcx
-     jl  loop
-     cmp rax, rdx
-     jg  loop
- done:
-     ## rax is now within range by definition, or, we're to deep
-     pop rbp
-     ret
- #+END_SRC
+#+BEGIN_SRC asm
+walk_stack_posix:
+_walk_stack_posix:
+    mov rcx, rdi ; base pointer
+    mov r8,  rdx ; maximum number of steps
+    mov rdx, rsi ; end pointer
+_walk_stack_win64:
+    # rdi = base pointer, rsi = end pointer
+    push rbp
+    mov r9, rsp
+loop:
+    dec r8 ; counter
+    jz done
+    mov rax, qword ptr [r9+0x8]
+    mov r9, qword ptr [r9]
+    cmp rax, rcx
+    jl  loop
+    cmp rax, rdx
+    jg  loop
+done:
+    ## rax is now within range by definition, or, we're to deep
+    pop rbp
+    ret
+#+END_SRC
 
- There are three things to do:
+There are three things to do:
 
- This doesn't have to start in the expr JIT though.
+- Figure out where we need it. As far as I can tell, this is separate
+  from the jit_entry_label thing, and we will never *set* the
+  jit_entry_label with the result of this value, as that might lead to
+  a jump right behind the handler, and in the case of a THROWISH_POST,
+  an infinite loop. Indeed throwish_pre and throwish_post don't change.
+  - src/exceptions.c: search_frame_handlers (we compare the current
+    jit label, but we're interested in the current position); other
+    than that, the only updates are to the goto_handlers, and/or
+    setting the resum labels, but that only ever happens with
+    throwobj, and that one is explicitly throwish anyway, so the
+    jit_entry_label will be set correct.y
+  - src/core/frame.c: assignments from predefined labels, but, also,
+    MVM_frame_find_contextual_by_name, which uses it as a location
+    marker. For frames higher in the callstack, that is correct,
+    though, so we need to distinguish the top frame from the rest.
+  - src/spesh/deopt.c: for upper frames, we use jit_entry_label as
+    current location marker.... which is correct as it relies on exact
+    matches, and anything invoking anything that could deopt_all must
+    set the label anyway.
+- Finally, configure our toolchain so they have
+  -fno-omit-frame-pointer portably, this is spelled [[https://msdn.microsoft.com/en-us/library/2kxx5t2c.aspx][/Oy]] in microsoft
+  land.
+- Integrate this in the build system. clang and gcc can build this
+  just fine (clang is ... whiney about comment syntax).  Microsoft
+  has: [[https://docs.microsoft.com/en-us/cpp/assembler/masm/masm-for-x64-ml64-exe][ml64]]. It also supports intel syntax. It can be a bit fuzzy
+  about directives. I don't want to ask our users to install another
+  assembler, but what I can do is use the C preprocessor to smoothen
+  out the differences (with $(CC) -E or whatever is the equivalent for
+  windows).
 
- - Figure out where we need it. As far as I can tell, this is separate
-   from the jit_entry_label thing, and we will never *set* the
-   jit_entry_label with the result of this value, as that might lead to
-   a jump right behind the handler, and in the case of a THROWISH_POST,
-   an infinite loop. Indeed throwish_pre and throwish_post don't change.
-   - src/exceptions.c: search_frame_handlers (we compare the current
-     jit label, but we're interested in the current position); other
-     than that, the only updates are to the goto_handlers, and/or
-     setting the resum labels, but that only ever happens with
-     throwobj, and that one is explicitly throwish anyway, so the
-     jit_entry_label will be set correct.y
-   - src/core/frame.c: assignments from predefined labels, but, also,
-     MVM_frame_find_contextual_by_name, which uses it as a location
-     marker. For frames higher in the callstack, that is correct,
-     though, so we need to distinguish the top frame from the rest.
-   - src/spesh/deopt.c: for upper frames, we use jit_entry_label as
-     current location marker.... which is correct as it relies on exact
-     matches, and anything invoking anything that could deopt_all must
-     set the label anyway.
- - Finally, configure our toolchain so they have
-   -fno-omit-frame-pointer portably, this is spelled [[https://msdn.microsoft.com/en-us/library/2kxx5t2c.aspx][/Oy]] in microsoft
-   land.
- - Integrate this in the build system. clang and gcc can build this
-   just fine (clang is ... whiney about comment syntax).  Microsoft
-   has: [[https://docs.microsoft.com/en-us/cpp/assembler/masm/masm-for-x64-ml64-exe][ml64]]. It also supports intel syntax. It can be a bit fuzzy
-   about directives. I don't want to ask our users to install another
-   assembler, but what I can do is use the C preprocessor to smoothen
-   out the differences (with $(CC) -E or whatever is the equivalent for
-   windows).
 * Tools
 ** Make jit-dump work on windows
 
@@ -118,49 +118,49 @@ definitions and uses.... but I'm not sure how just yet.
 
 * Expression Tree
 
-** Reduce tree node size to 32 bits
+** DONE Take pointers out of the expression tree
 
- Tree nodes are currently 64 bits wide to allow them to coexist with
- constant pointers. This is handy, but not really required, since we
- could use a lookup table to get the pointers (as long as we can
- declare pointers, for which I think we can still use the '@' sigil,
- e.g:
+Tree nodes are currently 64 bits wide to allow them to coexist with
+constant pointers. This is handy, but not really required, since we
+could use a lookup table to get the pointers (as long as we can
+declare pointers, for which I think we can still use the '@' sigil,
+e.g:
 
- #+BEGIN_EXAMPLE
- (template: say
-    (call (const @MVM_string_say ptr_sz)
-          (arglist 2
-            (carg (tc) ptr)
-            (carg $0 ptr))
- #+END_EXAMPLE
+#+BEGIN_EXAMPLE
+(template: say
+   (call (const @MVM_string_say ptr_sz)
+         (arglist 2
+           (carg (tc) ptr)
+           (carg $0 ptr))
+#+END_EXAMPLE
 
- The @MVM_string_say pointer can be stashed in an array:
+The @MVM_string_say pointer can be stashed in an array:
 
- #+BEGIN_SRC C
- static const void *MVM_jit_expr_ptrs[] = {
+#+BEGIN_SRC C
+static const void *MVM_jit_expr_ptrs[] = {
     ...
     MVM_string_say,
     ...
- };
- #+END_SRC
+};
+#+END_SRC
 
- And the pointer itself replaced by the index.
+And the pointer itself replaced by the index.
 
- We could argue against dealing with 64 bit constants in general, but
- unfortunately, const_i64 prevents us from doing that.... Ways of
- dealing with that:
+We could argue against dealing with 64 bit constants in general, but
+unfortunately, const_i64 prevents us from doing that.... Ways of
+dealing with that:
 
- + A 'large constants' table per tree (into which we could copy both the
-   i64 constants and the function pointer constants)
-   + We could store this entire table in the data section, too
- + A 'large constants' op, which could take the space to store the 64
-   bit constant directly; one of the advantages of that is that we
-   could specialise tiling to that (e.g. there is no advantage to
-   including a very large constant in the ADD tile since the underlying
-   'add' instruction cannot handle it).
- + Or both: have a large_const op and a large_const table, and only
-   have the large_const op refer to the large_const table (i.e. not the
-   regular const)
++ A 'large constants' table per tree (into which we could copy both the
+  i64 constants and the function pointer constants)
+  + We could store this entire table in the data section, too
++ A 'large constants' op, which could take the space to store the 64
+  bit constant directly; one of the advantages of that is that we
+  could specialise tiling to that (e.g. there is no advantage to
+  including a very large constant in the ADD tile since the underlying
+  'add' instruction cannot handle it).
++ Or both: have a large_const op and a large_const table, and only
+  have the large_const op refer to the large_const table (i.e. not the
+  regular const)
 
 NB - I didn't do the @ notation, because it turns out we need to
 specially handle the indirected constants, and because of platform
@@ -168,6 +168,21 @@ differences, we also make the distinction between large constants in
 general (MVMint64 or MVMnum64) and pointer constants, because pointers
 have different sizes per architecture, and general large constants do
 not.
+
+
+** Take label assignment to tiling
+
+Currently the labels are assigned (relative to a undefined tree
+internal label offset) during tree constructing (in the preorder phase
+of =MVM_jit_expr_tree_analyze=). I want to move this to the tiling
+phase because:
+
+- this is the only place where we actually need them
+- also, we know the absolute label offset, so there is no reason to
+  have a relative label offset anymore
+- during tiling, we break it in the optimization step anymore
+- we can keep the node-to-label map as a temporary data structure
+  rather than directly ('permanently') associated with the tree
 
 
 ** Encode (parts of) info as flags
@@ -205,9 +220,31 @@ typedef union {
 } MVMJitExprNode;
 #+END_SRC
 
+Actually, better to do:
+
+#+BEGIN_SRC C
+typedef struct {
+    MVMint16 o;     /* operator */
+    MVMuint8 n;     /* number of children */
+    MVMuint8 s : 4; /* result size */
+    MVMuint8 t : 4; /* result type */
+} MVMJitExprNode;
+
+typedef struct {
+    union {
+        struct { MVM_VECTOR_DECL(MVMint32, nodes); };
+        struct { MVM_VECTOR_DECL(MVMJitExprNode, info); };
+    };
+    ...
+} MVMJItExprTree;
+#+END_SRC
+
+Because we can then still access the nodes as integer numbers
+directly, and none of that code actually breaks.
+
 ** REPR-Specialized expression code
 
- Parts needed:
+Parts needed:
  + A hook for instructions with operands of known repr type to insert a template
    + So how do we know which instruction/operand this is? (Hardcode with a switch, maybe)
    + Runtime hook should be similar to spesh hook
@@ -238,15 +275,15 @@ typedef union {
 
 ** FLAGVAL ALL/ANY
 
- Basically, flagval all/any is legal according to the type system, it
- will just never work. We should translate it to (IF (ALL|ANY ..)
- (CONST 1 1) (CONST 0 1))
+Basically, flagval all/any is legal according to the type system, it
+will just never work. We should translate it to (IF (ALL|ANY ..)
+(CONST 1 1) (CONST 0 1))
 
- The problem is, replacing all references to the node. (This is common
- with the optimizer, which also needs it).
+The problem is, replacing all references to the node. (This is common
+with the optimizer, which also needs it).
 
- We don't actually need this yet, but we don't guard against it
- either. (So maybe install an oops in analyze first).
+We don't actually need this yet, but we don't guard against it
+either. (So maybe install an oops in analyze first).
 
 ** Use explicit stack for tree walking
 
@@ -256,18 +293,27 @@ should allow for some control on the iteration order
 
 ** Right-to-left evaluation
 
- E.g. (STORE addr value sz) - it usually makes sense to calculate value
- before address. There are a bunch of these things, and then again, a
- bunch of things that rely on left-to-right evaluation:
+E.g. (STORE addr value sz) - it usually makes sense to calculate value
+before address. There are a bunch of these things, and then again, a
+bunch of things that rely on left-to-right evaluation:
 
- + IF/IFV
- + ALL/ANY
- + DO/DOV
++ IF/IFV
++ ALL/ANY
++ DO/DOV
 
- So the thing is probably to:
++ So the thing is probably to:
  + store a preference per op
  + add a policy for the traverser (default,left-to-right,right-to-left)
 
+** Implement =COND= and associated operators
+
+The idea is that we can generalize all conditional operators like
+=WHEN= and =IF= and =IFV= as =COND= (like LISP) operators. The goal of
+doing so is that in theory, compiling =COND= is more regular than
+compiling variants of =IF= and =IFV=.
+
+Needs some care in the case of yielding-a-value (and we might still
+implement an =^if= macro) for the linear scan allocator.
 
 * Register Allocator
 
@@ -443,4 +489,3 @@ Only allowed if user is pointerlike (e.g. LOAD)
   - A const never needs to be kept in memory, and it is just as well
     to keep just a single reference to it. (This might be better in
     the register allocator though)
-
