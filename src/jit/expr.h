@@ -49,8 +49,6 @@ struct MVMJitExprNodeInfo {
     MVMint8          opr_type;
     /* Size of computed value */
     MVMint8         size;
-    /* internal label for IF/WHEN/ALL/ANY etc, relative to the tree label offset */
-    MVMint32        label;
 };
 
 struct MVMJitExprTree {
@@ -65,8 +63,6 @@ struct MVMJitExprTree {
         uintptr_t u;
     }, constants);
 
-    MVMint32 label_ofs;
-    MVMint32 num_labels;
     MVMuint32 seq_nr;
 };
 
