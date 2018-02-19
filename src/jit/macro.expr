@@ -29,6 +29,8 @@
 
 (macro: ^exit () (branch (label branch_exit)))
 
+(macro: ^func (,x) (const_ptr ,x))
+
 (macro: ^p6obody (,a)
    (let: (($replace (^getf ,a MVMP6opaque body.replaced)))
          (if (nz $replace)

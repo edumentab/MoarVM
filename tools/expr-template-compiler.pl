@@ -162,7 +162,7 @@ sub apply_macros {
             my %bind; @bind{@$params} = @result;
             return fill_macro($structure, \%bind);
         } else {
-            die "Tried to instantiate undefined macro $result[0]";
+            die "Tried to instantiate undefined macro $name";
         }
     }
     return \@result;
